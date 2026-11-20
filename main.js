@@ -93,7 +93,6 @@ function bmpToCanvas(arrayBuffer) {
 }
 
 // ---------- Asset loading ----------
-const ASSET_BASE64 = {};
 const assets = {};
 
 async function loadAssets() {
@@ -102,9 +101,7 @@ async function loadAssets() {
     const names = Object.keys(bmpData);
     for (const name of names) {
         const buf = Uint8Array.from(atob(bmpData[name]), c => c.charCodeAt(0)).buffer;
-        const canvas = bmpToCanvas(buf);
-        assets[name] = canvas;
-        ASSET_BASE64[name] = canvas.toDataURL('image/png');
+        assets[name] = bmpToCanvas(buf);
     }
     console.log('Assets loaded:', Object.keys(assets).join(', '));
 }
@@ -425,7 +422,7 @@ function showGameOver() {
     const finalLevel = Module.level();
     showOverlay(`
         <div class="screen" style="width:313px; height:141px; position:relative;">
-            <img src="${ASSET_BASE64['gameover_base.bmp']}" style="position:absolute; top:0; left:0; width:313px; height:138px;">
+            <div style="position:absolute; top:0; left:0; width:313px; height:138px; background:#000000; border:2px solid #c0c0c0;"></div>
             <div style="position:absolute; top:10px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; text-shadow:1px 1px 2px #000000;">GAME OVER</div>
             <div style="position:absolute; top:42px; left:0; right:0; text-align:center; color:#ffffff; text-shadow:1px 1px 2px #000000;">Final Score: <b>${finalScore}</b><br>Level Reached: <b>${finalLevel}</b></div>
             <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center;"><button onclick="restartGame()">Play Again</button></div>
@@ -461,7 +458,7 @@ function newGame() {
     if (!Module || dialogOpen) return;
     showOverlay(`
         <div class="screen" style="width:313px; height:141px; position:relative;">
-            <img src="${ASSET_BASE64['newgame_base.bmp']}" style="position:absolute; top:0; left:0; width:313px; height:138px;">
+            <div style="position:absolute; top:0; left:0; width:313px; height:138px; background:#000000; border:2px solid #c0c0c0;"></div>
             <div style="position:absolute; top:8px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; text-shadow:1px 1px 2px #000000;">JezzBox</div>
             <div style="position:absolute; top:48px; left:68px; right:68px; color:#000000; font-family:monospace; text-align:center;">Do you want to start a new game?</div>
             <div style="position:absolute; bottom:14px; display:flex; justify-content:center; gap:20px;"><button onclick="confirmNewGame()">Yes</button><button onclick="hideOverlay()">No</button></div>
@@ -490,7 +487,7 @@ function togglePause() {
 function showPaused() {
     showOverlay(`
         <div class="screen" style="width:${kPauseWidth}px; height:${kPauseHeight}px; position:relative; text-align:center;">
-            <img src="${ASSET_BASE64['paused_base.bmp']}" style="position:absolute; top:0; left:0; width:${kPauseWidth}px; height:${kPauseHeight}px;">
+            <div style="position:absolute; top:0; left:0; width:${kPauseWidth}px; height:${kPauseHeight}px; background:#c0c0c0; border:2px solid #ffffff;"></div>
             <div style="position:absolute; top:8px; left:0; right:0; text-align:center; color:#000000; font-weight:bold;">Paused</div>
         </div>
     `);
