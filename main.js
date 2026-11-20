@@ -121,14 +121,14 @@ function parseBMP(arrayBuffer) {
 
 function bmpToCanvas(arrayBuffer) {
     const { width, height, pixels } = parseBMP(arrayBuffer);
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const cctx = canvas.getContext('2d', { willReadFrequently: true });
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = height;
+    const cctx = c.getContext('2d', { willReadFrequently: true });
     const imgData = cctx.createImageData(width, height);
     imgData.data.set(pixels);
     cctx.putImageData(imgData, 0, 0);
-    return canvas;
+    return c;
 }
 
 // ---------- Asset loading ----------
