@@ -1,80 +1,77 @@
-// JezzBall web front-end: rendering, input, HUD, and screens.
+// JezzBox browser shell.  The game engine itself is the ORIGINAL C++
+// (src/jezzball.cpp) compiled to WebAssembly via Emscripten.  This file only
+// handles the canvas, input, HUD and the requestAnimationFrame loop that
+// drives the original game logic at its native tick rate.
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const CELL = 22; // canvas is 660x484 = 30x22 cells of 22px
+const CELL = 22; // 30 x 22 board cells = 660 x 484 canvas
 
-const game = new Game();
+let Module = null;
+let game = null;
+let started = false;
+let rafId = null;
+let last = performance.now();
+let acc = 0;
 
 const hudEl = document.getElementById('hud');
 const overlay = document.getElementById('overlay');
 const overlayContent = document.getElementById('overlay-content');
 
-let started = false;
-let acc = 0;
-let last = performance.now();
-let rafId;
-
 function fmtTime(t) {
-    const secs = Math.max(0, Math.ceil(t / 10));
+    const secs = Math.max(0, Math.ceil(Math.max(0, t) / 10));
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function cellColor(state) {
+    // 0 = Filled (cleared wall), 1 = Open (chamber), 2 = SliceA, 3 = SliceB
     switch (state) {
-        case CellState.Filled: return '#1a1a1a';
-        case CellState.Open:   return '#000000';
-        case CellState.SliceA: return '#00ffff';
-        case CellState.SliceB: return '#ffff00';
+        case 0: return '#111111';
+        case 1: return '#000000';
+        case 2: return '#00ffff';
+        case 3: return '#ffff00';
         default: return '#000000';
     }
 }
 
 function draw() {
-    // Background / board
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const board = game.board();
-    for (let y = 1; y <= kBoardHeight; y++) {
-        for (let x = 1; x <= kBoardWidth; x++) {
-            const c = board[indexOf(x, y)];
-            ctx.fillStyle = cellColor(c.state);
+    const board = game.boardStates();
+    for (let y = 1; y <= 22; y++) {
+        const rowOff = (y - 1) * 30;
+        for (let x = 1; x <= 30; x++) {
+            const state = board[rowOff + (x - 1)];
+            ctx.fillStyle = cellColor(state);
             ctx.fillRect((x - 1) * CELL, (y - 1) * CELL, CELL, CELL);
-            // subtle grid line
-            ctx.strokeStyle = '#0a0a0a';
-            ctx.lineWidth = 1;
-            ctx.strokeRect((x - 1) * CELL, (y - 1) * CELL, CELL, CELL);
         }
     }
 
-    // Playable-area frame
+    // Playable chamber frame
     ctx.strokeStyle = '#333333';
     ctx.lineWidth = 2;
     ctx.strokeRect(
-        (kPlayableMinX - 1) * CELL,
-        (kPlayableMinY - 1) * CELL,
-        kPlayableWidth * CELL,
-        kPlayableHeight * CELL
+        1 * CELL, 1 * CELL,
+        28 * CELL, 20 * CELL
     );
 
-    // Balls
+    // Balls (drawn by the original engine)
     const balls = game.balls();
-    for (let i = 0; i < game.ballCount(); i++) {
+    const count = game.ballCount();
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 8;
+    for (let i = 0; i < count; i++) {
         const b = balls[i];
         if (!b.active) continue;
         const cx = (b.x - 0.5) * CELL;
         const cy = (b.y - 0.5) * CELL;
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(cx, cy, 7, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-        // direction tail
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -82,6 +79,7 @@ function draw() {
         ctx.lineTo(cx + b.dx * 5, cy + b.dy * 5);
         ctx.stroke();
     }
+    ctx.shadowBlur = 0;
 
     updateHud();
 }
@@ -104,7 +102,6 @@ function showOverlay(html) {
     overlayContent.innerHTML = html;
     overlay.classList.remove('hidden');
 }
-
 function hideOverlay() {
     overlay.classList.add('hidden');
 }
@@ -118,7 +115,16 @@ function startGame() {
     rafId = requestAnimationFrame(loop);
 }
 
-function gameOverScreen() {
+function restart() {
+    game.reset();
+    started = true;
+    hideOverlay();
+    last = performance.now();
+    acc = 0;
+    rafId = requestAnimationFrame(loop);
+}
+
+function showGameOver() {
     showOverlay(`
         <div class="screen">
             <h2>GAME OVER</h2>
@@ -129,7 +135,7 @@ function gameOverScreen() {
     `);
 }
 
-function levelCompleteScreen() {
+function showLevelComplete() {
     showOverlay(`
         <div class="screen">
             <h2>LEVEL ${game.level()} COMPLETE</h2>
@@ -141,24 +147,28 @@ function levelCompleteScreen() {
 }
 
 function loop(now) {
-    const tickMs = game.tickMilliseconds();
     const dt = now - last;
     last = now;
     acc += dt;
-    while (acc >= tickMs) {
-        acc -= tickMs;
-        game.tick();
+
+    if (!game.isPaused() && !game.isGameOver() && !game.isLevelComplete() && started) {
+        const tickMs = game.tickMilliseconds();
+        while (acc >= tickMs) {
+            acc -= tickMs;
+            game.tick(); // the ORIGINAL game logic tick
+        }
     }
+
     draw();
 
     if (game.isGameOver() && started) {
         cancelAnimationFrame(rafId);
-        gameOverScreen();
+        showGameOver();
         return;
     }
     if (game.isLevelComplete() && started) {
         cancelAnimationFrame(rafId);
-        levelCompleteScreen();
+        showLevelComplete();
         return;
     }
     rafId = requestAnimationFrame(loop);
@@ -168,11 +178,8 @@ function loop(now) {
 
 canvas.addEventListener('click', (ev) => {
     const rect = canvas.getBoundingClientRect();
-    const mx = ev.clientX - rect.left;
-    const my = ev.clientY - rect.top;
-    const x = Math.floor(mx / CELL) + 1;
-    const y = Math.floor(my / CELL) + 1;
-
+    const x = Math.floor((ev.clientX - rect.left) / CELL) + 1;
+    const y = Math.floor((ev.clientY - rect.top) / CELL) + 1;
     if (!started) {
         startGame();
         return;
@@ -183,20 +190,8 @@ canvas.addEventListener('click', (ev) => {
 
 window.addEventListener('keydown', (ev) => {
     const key = ev.key.toLowerCase();
-
-    if (key === 'r' && !started) {
-        startGame();
-        return;
-    }
-    if (key === 'r' && game.isGameOver()) {
-        game.reset();
-        started = true;
-        hideOverlay();
-        last = performance.now();
-        acc = 0;
-        rafId = requestAnimationFrame(loop);
-        return;
-    }
+    if (key === 'r' && !started) { startGame(); return; }
+    if (key === 'r' && game.isGameOver()) { restart(); return; }
     if (key === 'enter' && game.isLevelComplete()) {
         game.advanceToNextLevel();
         started = true;
@@ -207,21 +202,38 @@ window.addEventListener('keydown', (ev) => {
         return;
     }
     if (!started) return;
-
     if (key === ' ') { ev.preventDefault(); game.togglePause(); }
     if (key === 'p') game.togglePause();
     if (key === 'f') game.setFast(!game.isFast());
     if (key === 'v') game.toggleOrientation();
 });
 
-// Initial start screen
+// ---------- Bootstrap: load the WASM module (original engine) ----------
+
 showOverlay(`
     <div class="screen">
-        <h1>JezzBall</h1>
-        <p>Click the board to start a cut.<br>
-        Walls grow from your click.<br>
-        Don't let the balls touch the line!</p>
-        <p>Press <b>V</b> to toggle orientation • <b>F</b> fast/slow • <b>P</b> pause</p>
-        <p>Click anywhere to begin</p>
+        <h1>JezzBox</h1>
+        <p>Loading original game engine&hellip;</p>
     </div>
 `);
+
+(async () => {
+    Module = await JezzBoxModule({
+        locateFile: (path) => path.endsWith('.wasm') ? 'jezzbox.wasm' : path
+    });
+    game = new Module.GameBridge();
+    game.reset();
+    showOverlay(`
+        <div class="screen">
+            <h1>JezzBox</h1>
+            <p>The original 1992 JezzBall engine, compiled to WebAssembly.</p>
+            <p>Click the board to start a cut.<br>
+            Walls grow from your click&mdash;don&rsquo;t let the balls touch the line!</p>
+            <p>Press <b>V</b> toggle orientation &bull; <b>F</b> fast/slow &bull; <b>P</b> pause</p>
+            <p>Click anywhere to begin</p>
+        </div>
+    );
+    last = performance.now();
+    acc = 0;
+    rafId = requestAnimationFrame(loop);
+})();
