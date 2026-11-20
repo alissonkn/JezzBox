@@ -1,11 +1,15 @@
-// JezzBox browser shell.  The game engine itself is the ORIGINAL C++
-// (src/jezzball.cpp) compiled to WebAssembly via Emscripten.  This file only
-// handles the canvas, input, HUD and the requestAnimationFrame loop that
-// drives the original game logic at its native tick rate.
+// JezzBox browser shell.  The game engine is the ORIGINAL C++ JezzBall
+// logic (src/jezzball.cpp) compiled to WebAssembly via Emscripten.  This file
+// only provides the canvas, input, HUD and the requestAnimationFrame loop
+// that drives the original game logic at its native tick rate.
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const CELL = 22; // 30 x 22 board cells = 660 x 484 canvas
+
+const hudEl = document.getElementById('hud');
+const overlay = document.getElementById('overlay');
+const overlayContent = document.getElementById('overlay-content');
 
 let Module = null;
 let game = null;
@@ -13,10 +17,7 @@ let started = false;
 let rafId = null;
 let last = performance.now();
 let acc = 0;
-
-const hudEl = document.getElementById('hud');
-const overlay = document.getElementById('overlay');
-const overlayContent = document.getElementById('overlay-content');
+let loadError = null;
 
 function fmtTime(t) {
     const secs = Math.max(0, Math.ceil(Math.max(0, t) / 10));
@@ -53,10 +54,7 @@ function draw() {
     // Playable chamber frame
     ctx.strokeStyle = '#333333';
     ctx.lineWidth = 2;
-    ctx.strokeRect(
-        1 * CELL, 1 * CELL,
-        28 * CELL, 20 * CELL
-    );
+    ctx.strokeRect(1 * CELL, 1 * CELL, 28 * CELL, 20 * CELL);
 
     // Balls (drawn by the original engine)
     const balls = game.balls();
@@ -106,7 +104,20 @@ function hideOverlay() {
     overlay.classList.add('hidden');
 }
 
+function showError(msg) {
+    showOverlay(`
+        <div class="screen">
+            <h2 style="color:#ff4444">JezzBox failed to load</h2>
+            <p>${msg}</p>
+            <p>Make sure you are serving over HTTP (not file://) and that<br>
+            jezzbox.js and jezzbox.wasm are both available.</p>
+            <button onclick="location.reload()">Reload</button>
+        </div>
+    `);
+}
+
 function startGame() {
+    if (!game) return;
     started = true;
     hideOverlay();
     last = performance.now();
@@ -117,11 +128,7 @@ function startGame() {
 
 function restart() {
     game.reset();
-    started = true;
-    hideOverlay();
-    last = performance.now();
-    acc = 0;
-    rafId = requestAnimationFrame(loop);
+    startGame();
 }
 
 function showGameOver() {
@@ -130,7 +137,7 @@ function showGameOver() {
             <h2>GAME OVER</h2>
             <p>Final Score: <b>${game.score()}</b><br>
             Level Reached: <b>${game.level()}</b></p>
-            <p>Press <b>R</b> to restart</p>
+            <button onclick="location.reload()">Play Again</button>
         </div>
     `);
 }
@@ -141,9 +148,14 @@ function showLevelComplete() {
             <h2>LEVEL ${game.level()} COMPLETE</h2>
             <p>Bonus: <b>${game.levelBonus()}</b><br>
             Cleared: <b>${game.areaClearedPercent().toFixed(0)}%</b></p>
-            <p>Press <b>Enter</b> for next level</p>
+            <button onclick="advanceLevel()">Next Level</button>
         </div>
     `);
+}
+
+function advanceLevel() {
+    game.advanceToNextLevel();
+    startGame();
 }
 
 function loop(now) {
@@ -176,29 +188,42 @@ function loop(now) {
 
 // ---------- Input ----------
 
-canvas.addEventListener('click', (ev) => {
+function boardCellFromEvent(ev) {
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((ev.clientX - rect.left) / CELL) + 1;
     const y = Math.floor((ev.clientY - rect.top) / CELL) + 1;
+    return { x, y };
+}
+
+canvas.addEventListener('click', (ev) => {
+    if (!game) return;
     if (!started) {
         startGame();
         return;
     }
     if (game.isGameOver() || game.isLevelComplete()) return;
+    const { x, y } = boardCellFromEvent(ev);
     game.beginCut(x, y);
 });
 
+// Overlay click also starts the game (covers canvas before play begins).
+overlay.addEventListener('click', (ev) => {
+    if (!game) return;
+    if (!started) {
+        startGame();
+        return;
+    }
+});
+
 window.addEventListener('keydown', (ev) => {
+    if (!game) return;
     const key = ev.key.toLowerCase();
-    if (key === 'r' && !started) { startGame(); return; }
-    if (key === 'r' && game.isGameOver()) { restart(); return; }
+    if (key === 'r') {
+        if (!started) { startGame(); return; }
+        if (game.isGameOver()) { restart(); return; }
+    }
     if (key === 'enter' && game.isLevelComplete()) {
-        game.advanceToNextLevel();
-        started = true;
-        hideOverlay();
-        last = performance.now();
-        acc = 0;
-        rafId = requestAnimationFrame(loop);
+        advanceLevel();
         return;
     }
     if (!started) return;
@@ -218,22 +243,27 @@ showOverlay(`
 `);
 
 (async () => {
-    Module = await JezzBoxModule({
-        locateFile: (path) => path.endsWith('.wasm') ? 'jezzbox.wasm' : path
-    });
-    game = new Module.GameBridge();
-    game.reset();
-    showOverlay(`
-        <div class="screen">
-            <h1>JezzBox</h1>
-            <p>The original 1992 JezzBall engine, compiled to WebAssembly.</p>
-            <p>Click the board to start a cut.<br>
-            Walls grow from your click&mdash;don&rsquo;t let the balls touch the line!</p>
-            <p>Press <b>V</b> toggle orientation &bull; <b>F</b> fast/slow &bull; <b>P</b> pause</p>
-            <p>Click anywhere to begin</p>
-        </div>
-    );
-    last = performance.now();
-    acc = 0;
-    rafId = requestAnimationFrame(loop);
+    try {
+        Module = await JezzBoxModule({
+            locateFile: (path) => path.endsWith('.wasm') ? 'jezzbox.wasm' : path
+        });
+        game = new Module.GameBridge();
+        game.reset();
+        showOverlay(`
+            <div class="screen">
+                <h1>JezzBox</h1>
+                <p>The original 1992 JezzBall engine, compiled to WebAssembly.</p>
+                <p>Click the board to start a cut.<br>
+                Walls grow from your click&mdash;don&rsquo;t let the balls touch the line!</p>
+                <p>Press <b>V</b> toggle orientation &bull; <b>F</b> fast/slow &bull; <b>P</b> pause</p>
+                <p>Click anywhere to begin</p>
+            </div>
+        `);
+        last = performance.now();
+        acc = 0;
+        rafId = requestAnimationFrame(loop);
+    } catch (err) {
+        console.error('JezzBox load failed', err);
+        showError(err && err.message ? err.message : String(err));
+    }
 })();
