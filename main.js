@@ -12,12 +12,10 @@ const overlay = document.getElementById('overlay');
 const overlayContent = document.getElementById('overlay-content');
 
 let Module = null;
-let game = null;
 let started = false;
 let rafId = null;
 let last = performance.now();
 let acc = 0;
-let loadError = null;
 
 function fmtTime(t) {
     const secs = Math.max(0, Math.ceil(Math.max(0, t) / 10));
@@ -41,7 +39,7 @@ function draw() {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const board = game.boardStates();
+    const board = Module.boardStates();
     for (let y = 1; y <= 22; y++) {
         const rowOff = (y - 1) * 30;
         for (let x = 1; x <= 30; x++) {
@@ -57,8 +55,8 @@ function draw() {
     ctx.strokeRect(1 * CELL, 1 * CELL, 28 * CELL, 20 * CELL);
 
     // Balls (drawn by the original engine)
-    const balls = game.balls();
-    const count = game.ballCount();
+    const balls = Module.balls();
+    const count = Module.ballCount();
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#ffffff';
     ctx.shadowBlur = 8;
@@ -83,16 +81,16 @@ function draw() {
 }
 
 function updateHud() {
-    const pct = game.areaClearedPercent().toFixed(0);
+    const pct = Module.areaClearedPercent().toFixed(0);
     hudEl.innerHTML = `
-        <span><b>Level</b> ${game.level()}</span>
-        <span><b>Score</b> ${game.score()}</span>
-        <span><b>Lives</b> ${game.lives()}</span>
-        <span><b>Time</b> ${fmtTime(game.timeRemaining())}</span>
+        <span><b>Level</b> ${Module.level()}</span>
+        <span><b>Score</b> ${Module.score()}</span>
+        <span><b>Lives</b> ${Module.lives()}</span>
+        <span><b>Time</b> ${fmtTime(Module.timeRemaining())}</span>
         <span><b>Cleared</b> ${pct}%</span>
-        <span><b>Balls</b> ${game.ballCount()}</span>
-        <span><b>${game.isFast() ? 'FAST' : 'slow'}</b></span>
-        <span>${game.isPaused() ? 'PAUSED' : ''}</span>
+        <span><b>Balls</b> ${Module.ballCount()}</span>
+        <span><b>${Module.isFast() ? 'FAST' : 'slow'}</b></span>
+        <span>${Module.isPaused() ? 'PAUSED' : ''}</span>
     `;
 }
 
@@ -117,7 +115,7 @@ function showError(msg) {
 }
 
 function startGame() {
-    if (!game) return;
+    if (!Module) return;
     started = true;
     hideOverlay();
     last = performance.now();
@@ -127,7 +125,7 @@ function startGame() {
 }
 
 function restart() {
-    game.reset();
+    Module.reset();
     startGame();
 }
 
@@ -135,8 +133,8 @@ function showGameOver() {
     showOverlay(`
         <div class="screen">
             <h2>GAME OVER</h2>
-            <p>Final Score: <b>${game.score()}</b><br>
-            Level Reached: <b>${game.level()}</b></p>
+            <p>Final Score: <b>${Module.score()}</b><br>
+            Level Reached: <b>${Module.level()}</b></p>
             <button onclick="location.reload()">Play Again</button>
         </div>
     `);
@@ -145,16 +143,16 @@ function showGameOver() {
 function showLevelComplete() {
     showOverlay(`
         <div class="screen">
-            <h2>LEVEL ${game.level()} COMPLETE</h2>
-            <p>Bonus: <b>${game.levelBonus()}</b><br>
-            Cleared: <b>${game.areaClearedPercent().toFixed(0)}%</b></p>
+            <h2>LEVEL ${Module.level()} COMPLETE</h2>
+            <p>Bonus: <b>${Module.levelBonus()}</b><br>
+            Cleared: <b>${Module.areaClearedPercent().toFixed(0)}%</b></p>
             <button onclick="advanceLevel()">Next Level</button>
         </div>
     `);
 }
 
 function advanceLevel() {
-    game.advanceToNextLevel();
+    Module.advanceToNextLevel();
     startGame();
 }
 
@@ -163,22 +161,22 @@ function loop(now) {
     last = now;
     acc += dt;
 
-    if (!game.isPaused() && !game.isGameOver() && !game.isLevelComplete() && started) {
-        const tickMs = game.tickMilliseconds();
+    if (!Module.isPaused() && !Module.isGameOver() && !Module.isLevelComplete() && started) {
+        const tickMs = Module.tickMilliseconds();
         while (acc >= tickMs) {
             acc -= tickMs;
-            game.tick(); // the ORIGINAL game logic tick
+            Module.tick(); // the ORIGINAL game logic tick
         }
     }
 
     draw();
 
-    if (game.isGameOver() && started) {
+    if (Module.isGameOver() && started) {
         cancelAnimationFrame(rafId);
         showGameOver();
         return;
     }
-    if (game.isLevelComplete() && started) {
+    if (Module.isLevelComplete() && started) {
         cancelAnimationFrame(rafId);
         showLevelComplete();
         return;
@@ -196,19 +194,19 @@ function boardCellFromEvent(ev) {
 }
 
 canvas.addEventListener('click', (ev) => {
-    if (!game) return;
+    if (!Module) return;
     if (!started) {
         startGame();
         return;
     }
-    if (game.isGameOver() || game.isLevelComplete()) return;
+    if (Module.isGameOver() || Module.isLevelComplete()) return;
     const { x, y } = boardCellFromEvent(ev);
-    game.beginCut(x, y);
+    Module.beginCut(x, y);
 });
 
 // Overlay click also starts the game (covers canvas before play begins).
 overlay.addEventListener('click', (ev) => {
-    if (!game) return;
+    if (!Module) return;
     if (!started) {
         startGame();
         return;
@@ -216,21 +214,21 @@ overlay.addEventListener('click', (ev) => {
 });
 
 window.addEventListener('keydown', (ev) => {
-    if (!game) return;
+    if (!Module) return;
     const key = ev.key.toLowerCase();
     if (key === 'r') {
         if (!started) { startGame(); return; }
-        if (game.isGameOver()) { restart(); return; }
+        if (Module.isGameOver()) { restart(); return; }
     }
-    if (key === 'enter' && game.isLevelComplete()) {
+    if (key === 'enter' && Module.isLevelComplete()) {
         advanceLevel();
         return;
     }
     if (!started) return;
-    if (key === ' ') { ev.preventDefault(); game.togglePause(); }
-    if (key === 'p') game.togglePause();
-    if (key === 'f') game.setFast(!game.isFast());
-    if (key === 'v') game.toggleOrientation();
+    if (key === ' ') { ev.preventDefault(); Module.togglePause(); }
+    if (key === 'p') Module.togglePause();
+    if (key === 'f') Module.setFast(!Module.isFast());
+    if (key === 'v') Module.toggleOrientation();
 });
 
 // ---------- Bootstrap: load the WASM module (original engine) ----------
@@ -247,8 +245,7 @@ showOverlay(`
         Module = await JezzBoxModule({
             locateFile: (path) => path.endsWith('.wasm') ? 'jezzbox.wasm' : path
         });
-        game = new Module.GameBridge();
-        game.reset();
+        Module.reset();
         showOverlay(`
             <div class="screen">
                 <h1>JezzBox</h1>

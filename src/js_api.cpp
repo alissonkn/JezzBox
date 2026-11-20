@@ -1,111 +1,109 @@
 // Emscripten/embind bridge exposing the ORIGINAL JezzBall game engine
 // (src/jezzball.cpp / jezzball.h) to the browser.  The game logic itself is
 // untouched original C++; only the presentation/input layer is browser-native.
+//
+// Uses standalone C functions (not an embind class) so there is no `this`-pointer
+// wire-type conversion at the JS/C++ boundary, which avoids embind type-hierarchy
+// issues in this Emscripten version.
 
 #include <emscripten/bind.h>
 #include "jezzball.h"
 
 using namespace emscripten;
 
-class GameBridge {
-public:
-    GameBridge() = default;
+namespace {
+jezzball::Game g_game;
+}  // namespace
 
-    void reset() { game.reset(); }
-    void tick() { game.tick(); }
-    void togglePause() { game.togglePause(); }
-    void setFast(bool fast) { game.setFast(fast); }
-    void toggleOrientation() { game.toggleOrientation(); }
-    void beginCut(int x, int y) { game.beginCut(x, y); }
-    void advanceToNextLevel() { game.advanceToNextLevel(); }
+void reset() { g_game.reset(); }
+void tick() { g_game.tick(); }
+void togglePause() { g_game.togglePause(); }
+void setFast(bool fast) { g_game.setFast(fast); }
+void toggleOrientation() { g_game.toggleOrientation(); }
+void beginCut(int x, int y) { g_game.beginCut(x, y); }
+void advanceToNextLevel() { g_game.advanceToNextLevel(); }
 
-    bool isPaused() const noexcept { return game.isPaused(); }
-    bool isFast() const noexcept { return game.isFast(); }
-    bool isGameOver() const noexcept { return game.isGameOver(); }
-    bool isLevelComplete() const noexcept { return game.isLevelComplete(); }
-    bool verticalMode() const noexcept { return game.verticalMode(); }
+bool isPaused() noexcept { return g_game.isPaused(); }
+bool isFast() noexcept { return g_game.isFast(); }
+bool isGameOver() noexcept { return g_game.isGameOver(); }
+bool isLevelComplete() noexcept { return g_game.isLevelComplete(); }
+bool verticalMode() noexcept { return g_game.verticalMode(); }
 
-    int level() const noexcept { return game.level(); }
-    int ballCount() const noexcept { return game.ballCount(); }
-    int lives() const noexcept { return game.lives(); }
-    int score() const noexcept { return game.score(); }
-    int levelBonus() const noexcept { return game.levelBonus(); }
-    int areaClearedPercent() const noexcept { return game.areaClearedPercent(); }
-    int areaClearedCells() const noexcept { return game.areaClearedCells(); }
-    int timeRemaining() const noexcept { return game.timeRemaining(); }
-    int tickMilliseconds() const noexcept { return game.tickMilliseconds(); }
+int level() noexcept { return g_game.level(); }
+int ballCount() noexcept { return g_game.ballCount(); }
+int lives() noexcept { return g_game.lives(); }
+int score() noexcept { return g_game.score(); }
+int levelBonus() noexcept { return g_game.levelBonus(); }
+int areaClearedPercent() noexcept { return g_game.areaClearedPercent(); }
+int areaClearedCells() noexcept { return g_game.areaClearedCells(); }
+int timeRemaining() noexcept { return g_game.timeRemaining(); }
+int tickMilliseconds() noexcept { return g_game.tickMilliseconds(); }
 
-    val boardStates() const noexcept {
-        const auto& b = game.board();
-        val a = val::array();
-        for (size_t i = 0; i < b.size(); ++i) {
-            a.set(i, static_cast<int>(b[static_cast<size_t>(i)].state));
-        }
-        return a;
+val boardStates() noexcept {
+    const auto& b = g_game.board();
+    val a = val::array();
+    for (size_t i = 0; i < b.size(); ++i) {
+        a.set(i, static_cast<int>(b[static_cast<size_t>(i)].state));
     }
+    return a;
+}
 
-    val balls() const noexcept {
-        const auto& bs = game.balls();
-        val a = val::array();
-        const int count = game.ballCount();
-        for (int i = 0; i < count; ++i) {
-            const auto& ball = bs[static_cast<size_t>(i)];
-            val o = val::object();
-            o.set("x", ball.x);
-            o.set("y", ball.y);
-            o.set("dx", ball.dx);
-            o.set("dy", ball.dy);
-            o.set("active", ball.active);
-            o.set("frame", ball.frame);
-            a.set(i, o);
-        }
-        return a;
+val balls() noexcept {
+    const auto& bs = g_game.balls();
+    val a = val::array();
+    const int count = g_game.ballCount();
+    for (int i = 0; i < count; ++i) {
+        const auto& ball = bs[static_cast<size_t>(i)];
+        val o = val::object();
+        o.set("x", ball.x);
+        o.set("y", ball.y);
+        o.set("dx", ball.dx);
+        o.set("dy", ball.dy);
+        o.set("active", ball.active);
+        o.set("frame", ball.frame);
+        a.set(i, o);
     }
+    return a;
+}
 
-    val slicers() const noexcept {
-        const auto& ss = game.slicers();
-        val a = val::array();
-        for (size_t i = 0; i < ss.size(); ++i) {
-            const auto& s = ss[static_cast<size_t>(i)];
-            val o = val::object();
-            o.set("active", s.active);
-            o.set("x", s.x);
-            o.set("y", s.y);
-            o.set("owner", s.owner);
-            a.set(i, o);
-        }
-        return a;
+val slicers() noexcept {
+    const auto& ss = g_game.slicers();
+    val a = val::array();
+    for (size_t i = 0; i < ss.size(); ++i) {
+        const auto& s = ss[static_cast<size_t>(i)];
+        val o = val::object();
+        o.set("active", s.active);
+        o.set("x", s.x);
+        o.set("y", s.y);
+        o.set("owner", s.owner);
+        a.set(i, o);
     }
-
-private:
-    jezzball::Game game;
-};
+    return a;
+}
 
 EMSCRIPTEN_BINDINGS(jezzbox) {
-    class_<GameBridge>("GameBridge")
-        .constructor()
-        .function("reset", &GameBridge::reset)
-        .function("tick", &GameBridge::tick)
-        .function("togglePause", &GameBridge::togglePause)
-        .function("setFast", &GameBridge::setFast)
-        .function("toggleOrientation", &GameBridge::toggleOrientation)
-        .function("beginCut", &GameBridge::beginCut)
-        .function("advanceToNextLevel", &GameBridge::advanceToNextLevel)
-        .function("isPaused", &GameBridge::isPaused)
-        .function("isFast", &GameBridge::isFast)
-        .function("isGameOver", &GameBridge::isGameOver)
-        .function("isLevelComplete", &GameBridge::isLevelComplete)
-        .function("verticalMode", &GameBridge::verticalMode)
-        .function("level", &GameBridge::level)
-        .function("ballCount", &GameBridge::ballCount)
-        .function("lives", &GameBridge::lives)
-        .function("score", &GameBridge::score)
-        .function("levelBonus", &GameBridge::levelBonus)
-        .function("areaClearedPercent", &GameBridge::areaClearedPercent)
-        .function("areaClearedCells", &GameBridge::areaClearedCells)
-        .function("timeRemaining", &GameBridge::timeRemaining)
-        .function("tickMilliseconds", &GameBridge::tickMilliseconds)
-        .function("boardStates", &GameBridge::boardStates)
-        .function("balls", &GameBridge::balls)
-        .function("slicers", &GameBridge::slicers);
+    function("reset", &reset);
+    function("tick", &tick);
+    function("togglePause", &togglePause);
+    function("setFast", &setFast);
+    function("toggleOrientation", &toggleOrientation);
+    function("beginCut", &beginCut);
+    function("advanceToNextLevel", &advanceToNextLevel);
+    function("isPaused", &isPaused);
+    function("isFast", &isFast);
+    function("isGameOver", &isGameOver);
+    function("isLevelComplete", &isLevelComplete);
+    function("verticalMode", &verticalMode);
+    function("level", &level);
+    function("ballCount", &ballCount);
+    function("lives", &lives);
+    function("score", &score);
+    function("levelBonus", &levelBonus);
+    function("areaClearedPercent", &areaClearedPercent);
+    function("areaClearedCells", &areaClearedCells);
+    function("timeRemaining", &timeRemaining);
+    function("tickMilliseconds", &tickMilliseconds);
+    function("boardStates", &boardStates);
+    function("balls", &balls);
+    function("slicers", &slicers);
 }
