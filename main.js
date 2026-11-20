@@ -73,7 +73,7 @@ function bmpToCanvas(arrayBuffer) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    const cctx = canvas.getContext('canvas', { willReadFrequently: true });
+    const cctx = canvas.getContext('2d', { willReadFrequently: true });
     const imgData = cctx.createImageData(width, height);
     imgData.data.set(pixels);
     cctx.putImageData(imgData, 0, 0);
@@ -155,7 +155,7 @@ let acc = 0;
 let dialogOpen = null;
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('canvas', { willReadFrequently: true });
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const hudEl = document.getElementById('hud');
 const overlay = document.getElementById('overlay');
 const overlayContent = document.getElementById('overlay-content');
@@ -180,7 +180,7 @@ function drawAtlasTile(atlas, dc, dx, dy, dw, dh, sx, sy, sw, sh, transparent) {
     if (transparent) {
         const temp = document.createElement('canvas');
         temp.width = sw; temp.height = sh;
-        const tctx = temp.getContext('canvas', { willReadFrequently: true });
+        const tctx = temp.getContext('2d', { willReadFrequently: true });
         tctx.drawImage(atlas, sx, sy, sw, sh, 0, 0, sw, sh);
         const imgData = tctx.getImageData(0, 0, sw, sh);
         for (let i = 0; i < imgData.data.length; i += 4) {
