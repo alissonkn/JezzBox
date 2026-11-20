@@ -147,6 +147,10 @@ async function loadAssets() {
     console.log('Assets loaded:', Object.keys(assets).join(', '));
 }
 
+// ---------- Display scaling ----------
+// Canvas stays at original 517x374 internally; CSS scales it up for display.
+const DISPLAY_SCALE = 1.5; // 1.5x = 776x561 displayed
+
 // ---------- Constants (from jezzball.h / win32.cpp) ----------
 const kBoardWidth = 30;
 const kBoardHeight = 22;
@@ -682,9 +686,11 @@ function loop(now) {
 // ---------- Input ----------
 function boardCellFromEvent(ev) {
     const rect = canvas.getBoundingClientRect();
-    // Account for board origin offset (board is centered in canvas)
-    const boardX = ev.clientX - rect.left - layout.originX;
-    const boardY = ev.clientY - rect.top - layout.originY;
+    // Account for CSS scaling: rect is in CSS pixels, board coords are internal pixels
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const boardX = (ev.clientX - rect.left) * scaleX - layout.originX;
+    const boardY = (ev.clientY - rect.top) * scaleY - layout.originY;
     const x = kVisibleMinX + Math.floor(boardX / kScreenTileW);
     const y = kVisibleMaxY - Math.floor(boardY / kScreenTileH);
     return { x, y };
