@@ -149,7 +149,8 @@ async function loadAssets() {
 
 // ---------- Display scaling ----------
 // Canvas stays at original 517x374 internally; CSS scales it up for display.
-const DISPLAY_SCALE = 1.5; // 1.5x = 776x561 displayed
+// Use integer scale factors (2x = 1034x748) to avoid subpixel artifacts.
+const DISPLAY_SCALE = 2; // 2x = 1034x748 displayed
 
 // ---------- Constants (from jezzball.h / win32.cpp) ----------
 const kBoardWidth = 30;
