@@ -1,0 +1,132 @@
+:root {
+    --bg: #0b0c10;
+    --panel: #12141c;
+    --text: #e8eaf2;
+    --accent: #00ffff;
+    --accent2: #ffff00;
+    --muted: #7a8296;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+}
+
+header {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    color: var(--accent);
+}
+
+.hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid #232a3a;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+}
+
+.hud span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.board-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+}
+
+canvas {
+    display: block;
+    background: #000;
+    border: 2px solid #232a3a;
+    border-radius: 4px;
+    max-width: 100%;
+    height: auto;
+    cursor: crosshair;
+    image-rendering: pixelated;
+}
+
+.overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    cursor: pointer;
+}
+.overlay.hidden { display: none; }
+
+.screen {
+    text-align: center;
+    padding: 24px;
+    max-width: 320px;
+}
+.screen h1, .screen h2 {
+    margin: 0 0 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+}
+.screen h2 { font-size: 1.5rem; }
+.screen p {
+    margin: 6px 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+.screen b { color: var(--text); }
+
+.controls {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    max-width: 700px;
+}
+.controls kbd {
+    background: #1f2330;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--accent2);
+    margin: 0 2px;
+    font-family: inherit;
+}
+
+@media (max-width: 640px) {
+    .wrap { padding: 8px; }
+    .hud { font-size: 0.75rem; gap: 8px; }
+}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JezzBall</title>
+    <meta name="description" content="JezzBall - the classic 1992 Windows puzzle game, web port.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <h1>JezzBall</h1>
+            <div id="hud" class="hud"></div>
+        </header>
+        <div class="board-wrap">
+            <canvas id="game" width="660" height="484"></canvas>
+            <div id="overlay" class="overlay hidden">
+                <div class="overlay-content" id="overlay-content"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <p>Click to start a cut &bull; <kbd>V</kbd> toggle orientation &bull; <kbd>F</kbd> fast/slow &bull; <kbd>P</kbd> pause &bull; <kbd>R</kbd> restart</p>
+        </div>
+    </div>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
