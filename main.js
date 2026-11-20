@@ -207,20 +207,6 @@ function drawAtlasTile(atlas, dc, dx, dy, dw, dh, sx, sy, sw, sh, transparent) {
 }
 
 // ---------- Rendering ----------
-let floorPattern = null;
-
-function createFloorPattern() {
-    const atlas = assets['jezzball_atlas.bmp'];
-    if (!atlas) return null;
-    const temp = document.createElement('canvas');
-    temp.width = kScreenTileW;
-    temp.height = kScreenTileH;
-    const tc = temp.getContext('2d', { willReadFrequently: true });
-    tc.drawImage(atlas, kFloorSourceX, kFloorSourceY, kFloorSourceW, kFloorSourceH,
-                 0, 0, kScreenTileW, kScreenTileH);
-    return ctx.createPattern(temp, 'repeat');
-}
-
 function fmtTime(t) {
     const secs = Math.max(0, Math.ceil(Math.max(0, t) / 10));
     const m = Math.floor(secs / 60);
@@ -265,15 +251,6 @@ function draw() {
 
     const board = Module.boardStates();
 
-    // Draw floor tiles in ONE call using pattern repeat
-    if (!floorPattern) floorPattern = createFloorPattern();
-    if (floorPattern) {
-        ctx.fillStyle = floorPattern;
-        ctx.fillRect(layout.board.left, layout.board.top,
-                     layout.board.right - layout.board.left,
-                     layout.board.bottom - layout.board.top);
-    }
-
     for (let y = kVisibleMinY; y <= kVisibleMaxY; y++) {
         for (let x = kVisibleMinX; x <= kVisibleMaxX; x++) {
             const px = layout.originX + (x - kVisibleMinX) * kScreenTileW;
@@ -281,7 +258,9 @@ function draw() {
             const c = board[((y - 1) * kBoardWidth + (x - 1))];
 
             if (c === CellState.Filled) continue;
-            if (c === CellState.Open) continue;
+
+            drawAtlasTile(atlas, ctx, px, py, kScreenTileW, kScreenTileH,
+                          kFloorSourceX, kFloorSourceY, kFloorSourceW, kFloorSourceH, false);
 
             if (c === CellState.SliceA || c === CellState.SliceB) {
                 const red = c === CellState.SliceA;
