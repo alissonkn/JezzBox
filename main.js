@@ -102,6 +102,8 @@ async function loadAssets() {
     for (const name of names) {
         const buf = Uint8Array.from(atob(bmpData[name]), c => c.charCodeAt(0)).buffer;
         assets[name] = bmpToCanvas(buf);
+        // Yield to browser between assets to avoid script timeout watchdog
+        await new Promise(r => setTimeout(r, 0));
     }
     console.log('Assets loaded:', Object.keys(assets).join(', '));
 }
