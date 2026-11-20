@@ -131,6 +131,9 @@ canvas {
     image-rendering: pixelated;
     cursor: crosshair;
 }
+canvas.cursor-horizontal { cursor: ew-resize; }
+canvas.cursor-vertical { cursor: ns-resize; }
+canvas.cursor-cutting { cursor: crosshair; }
 
 .overlay {
     position: absolute;

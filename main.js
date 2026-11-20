@@ -207,6 +207,20 @@ function drawAtlasTile(atlas, dc, dx, dy, dw, dh, sx, sy, sw, sh, transparent) {
 }
 
 // ---------- Rendering ----------
+let floorPattern = null;
+
+function createFloorPattern() {
+    const atlas = assets['jezzball_atlas.bmp'];
+    if (!atlas) return null;
+    const temp = document.createElement('canvas');
+    temp.width = kScreenTileW;
+    temp.height = kScreenTileH;
+    const tc = temp.getContext('2d', { willReadFrequently: true });
+    tc.drawImage(atlas, kFloorSourceX, kFloorSourceY, kFloorSourceW, kFloorSourceH,
+                 0, 0, kScreenTileW, kScreenTileH);
+    return ctx.createPattern(temp, 'repeat');
+}
+
 function fmtTime(t) {
     const secs = Math.max(0, Math.ceil(Math.max(0, t) / 10));
     const m = Math.floor(secs / 60);
@@ -251,6 +265,15 @@ function draw() {
 
     const board = Module.boardStates();
 
+    // Draw floor tiles in ONE call using pattern repeat
+    if (!floorPattern) floorPattern = createFloorPattern();
+    if (floorPattern) {
+        ctx.fillStyle = floorPattern;
+        ctx.fillRect(layout.board.left, layout.board.top,
+                     layout.board.right - layout.board.left,
+                     layout.board.bottom - layout.board.top);
+    }
+
     for (let y = kVisibleMinY; y <= kVisibleMaxY; y++) {
         for (let x = kVisibleMinX; x <= kVisibleMaxX; x++) {
             const px = layout.originX + (x - kVisibleMinX) * kScreenTileW;
@@ -258,9 +281,7 @@ function draw() {
             const c = board[((y - 1) * kBoardWidth + (x - 1))];
 
             if (c === CellState.Filled) continue;
-
-            drawAtlasTile(atlas, ctx, px, py, kScreenTileW, kScreenTileH,
-                          kFloorSourceX, kFloorSourceY, kFloorSourceW, kFloorSourceH, false);
+            if (c === CellState.Open) continue;
 
             if (c === CellState.SliceA || c === CellState.SliceB) {
                 const red = c === CellState.SliceA;
@@ -381,6 +402,21 @@ function drawHud() {
     ctx.restore();
 }
 
+// ---------- Cursor ----------
+function updateCursor() {
+    if (!Module || !canvas) return;
+    canvas.classList.remove('cursor-horizontal', 'cursor-vertical', 'cursor-cutting');
+    const slicers = Module.slicers();
+    const cutting = slicers.some(s => s.active);
+    if (cutting) {
+        canvas.classList.add('cursor-cutting');
+    } else if (Module.verticalMode()) {
+        canvas.classList.add('cursor-vertical');
+    } else {
+        canvas.classList.add('cursor-horizontal');
+    }
+}
+
 // ---------- Dialogs & Menus ----------
 function showOverlay(html) {
     overlayContent.innerHTML = html;
@@ -411,6 +447,7 @@ function startGame() {
     acc = 0;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(loop);
+    updateCursor();
     console.log('Game started, loop running');
 }
 
@@ -583,6 +620,7 @@ function loop(now) {
     }
 
     draw();
+    updateCursor();
 
     if (Module.isGameOver() && started) {
         cancelAnimationFrame(rafId);
@@ -622,6 +660,7 @@ canvas.addEventListener('mousedown', (ev) => {
         if (x >= 1 && x <= kBoardWidth && y >= 1 && y <= kBoardHeight) {
             Module.beginCut(x, y);
             console.log('Cut started at', x, y);
+            updateCursor();
         }
     } else if (ev.button === 2) {
         ev.preventDefault();
@@ -655,7 +694,7 @@ window.addEventListener('keydown', (ev) => {
     if (key === ' ') { ev.preventDefault(); Module.togglePause(); }
     if (key === 'p') Module.togglePause();
     if (key === 'f') Module.setFast(!Module.isFast());
-    if (key === 'v') Module.toggleOrientation();
+    if (key === 'v') { Module.toggleOrientation(); updateCursor(); }
 });
 
 // ---------- Bootstrap ----------
