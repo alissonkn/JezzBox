@@ -467,6 +467,7 @@ function showError(msg) {
 function startGame() {
     console.log('startGame called, Module=', !!Module, 'dialogOpen=', dialogOpen, 'started=', started);
     if (!Module) return;
+    showStartScreen = false;
     started = true;
     hideOverlay();
     last = performance.now();
