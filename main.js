@@ -4,6 +4,19 @@
 // Rendering: reproduces original Win32 GDI drawing using original bitmap assets
 // ============================================================================
 
+// Global error handler
+window.addEventListener('error', (ev) => {
+    console.error('Global error:', ev.error);
+    const d = document.getElementById('debug');
+    if (d) d.textContent += '\nERROR: ' + (ev.error ? ev.error.message : ev.message);
+});
+
+window.addEventListener('unhandledrejection', (ev) => {
+    console.error('Unhandled rejection:', ev.reason);
+    const d = document.getElementById('debug');
+    if (d) d.textContent += '\nREJECTION: ' + (ev.reason ? ev.reason : ev);
+});
+
 // ---------- BMP Parser ----------
 function parseBMP(arrayBuffer) {
     const data = new Uint8Array(arrayBuffer);
@@ -11,7 +24,6 @@ function parseBMP(arrayBuffer) {
     if (data[0] !== 0x42 || data[1] !== 0x4D) throw new Error('Not a BMP file');
 
     const pixelOffset = dv.getUint32(10, true);
-    const headerSize = dv.getUint32(14, true);
     const width = dv.getInt32(18, true);
     const height = dv.getInt32(22, true);
     const planes = dv.getUint16(26, true);
@@ -92,9 +104,9 @@ async function loadAssets() {
         const buf = Uint8Array.from(atob(bmpData[name]), c => c.charCodeAt(0)).buffer;
         const canvas = bmpToCanvas(buf);
         assets[name] = canvas;
-        // Convert to PNG data URL for use in HTML dialogs (BMP not widely supported in <img>)
         ASSET_BASE64[name] = canvas.toDataURL('image/png');
     }
+    console.log('Assets loaded:', Object.keys(assets).join(', '));
 }
 
 // ---------- Constants (from jezzball.h / win32.cpp) ----------
@@ -174,7 +186,7 @@ function computeLayout(clientW, clientH) {
 
 let layout = computeLayout(517, 374);
 
-// ---------- Atlas tile drawing (reproduces drawAtlasTile / TransparentBlt) ----------
+// ---------- Atlas tile drawing ----------
 function drawAtlasTile(atlas, dc, dx, dy, dw, dh, sx, sy, sw, sh, transparent) {
     if (!atlas) return;
     if (transparent) {
@@ -226,7 +238,6 @@ function draw() {
 
     const atlas = assets['jezzball_atlas.bmp'];
 
-    // Fill board area black
     ctx.fillStyle = '#000000';
     ctx.fillRect(layout.board.left, layout.board.top,
                  layout.board.right - layout.board.left,
@@ -249,14 +260,12 @@ function draw() {
 
             if (c === CellState.Filled) continue;
 
-            // Floor tile
             drawAtlasTile(atlas, ctx, px, py, kScreenTileW, kScreenTileH,
                           kFloorSourceX, kFloorSourceY, kFloorSourceW, kFloorSourceH, false);
 
             if (c === CellState.SliceA || c === CellState.SliceB) {
                 const red = c === CellState.SliceA;
                 if (!Module.verticalMode()) {
-                    // Horizontal wall
                     const sx = red ? kRedHorizontalWallBodySourceX : kBlueHorizontalWallBodySourceX;
                     const dy = py + (kScreenTileH - kHorizontalWallRenderH) / 2;
                     drawAtlasTile(atlas, ctx, px, dy,
@@ -283,7 +292,6 @@ function draw() {
                                       kWallCapSourceW, kWallCapSourceH, false);
                     }
                 } else {
-                    // Vertical wall
                     const sx = red ? kVerticalWallSourceX : kVerticalWallSourceX;
                     const dx = px + (kScreenTileW - kVerticalWallRenderW) / 2;
                     drawAtlasTile(atlas, ctx, dx, py,
@@ -291,9 +299,6 @@ function draw() {
                                   sx, kVerticalWallSourceY,
                                   kVerticalWallSourceW, kVerticalWallSourceH, false);
 
-                    // Note: original uses drawAtlasQuarterTurn for vertical walls,
-                    // but since source tiles are already oriented correctly in the atlas,
-                    // we draw them directly here.
                     const bottomEnd = y === kVisibleMinY ||
                         board[((y - 2) * kBoardWidth + (x - 1))] !== c;
                     const topEnd = y === kVisibleMaxY ||
@@ -399,6 +404,7 @@ function showError(msg) {
 }
 
 function startGame() {
+    console.log('startGame called, Module=', !!Module, 'dialogOpen=', dialogOpen, 'started=', started);
     if (!Module || dialogOpen) return;
     started = true;
     hideOverlay();
@@ -406,6 +412,7 @@ function startGame() {
     acc = 0;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(loop);
+    console.log('Game started, loop running');
 }
 
 function restart() {
@@ -418,17 +425,10 @@ function showGameOver() {
     const finalLevel = Module.level();
     showOverlay(`
         <div class="screen" style="width:313px; height:141px; position:relative;">
-            <img src="data:image/bmp;base64,${ASSET_BASE64['gameover_base.bmp']}" style="position:absolute; top:0; left:0; width:313px; height:138px;">
-            <div style="position:absolute; top:10px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; text-shadow:1px 1px 2px #000000;">
-                GAME OVER
-            </div>
-            <div style="position:absolute; top:42px; left:0; right:0; text-align:center; color:#ffffff; text-shadow:1px 1px 2px #000000;">
-                Final Score: <b>${finalScore}</b><br>
-                Level Reached: <b>${finalLevel}</b>
-            </div>
-            <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center;">
-                <button onclick="restartGame()">Play Again</button>
-            </div>
+            <img src="${ASSET_BASE64['gameover_base.bmp']}" style="position:absolute; top:0; left:0; width:313px; height:138px;">
+            <div style="position:absolute; top:10px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; text-shadow:1px 1px 2px #000000;">GAME OVER</div>
+            <div style="position:absolute; top:42px; left:0; right:0; text-align:center; color:#ffffff; text-shadow:1px 1px 2px #000000;">Final Score: <b>${finalScore}</b><br>Level Reached: <b>${finalLevel}</b></div>
+            <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center;"><button onclick="restartGame()">Play Again</button></div>
         </div>
     `);
 }
@@ -442,16 +442,11 @@ function restartGame() {
 function showLevelComplete() {
     const level = Module.level();
     const bonus = Module.levelBonus();
-    const pct = fmtPercent(Module.areaClearedPercent());
     showOverlay(`
         <div class="screen" style="width:${kLevelCompleteWidth}px; height:${kLevelCompleteHeight}px; position:relative;">
             <h2 style="position:absolute; top:4px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; margin:0; text-shadow:1px 1px 2px #000000;">Well done!</h2>
-            <div style="position:absolute; top:39px; left:27px; right:27px; border:1px solid #000000; padding:2px; background:#ffffff; color:#000000; font-family:monospace; text-align:center;">
-                You have completed<br>Level ${level}
-            </div>
-            <div style="position:absolute; bottom:20px; left:0; right:0; text-align:center;">
-                <button onclick="advanceLevel()">NEXT LEVEL</button>
-            </div>
+            <div style="position:absolute; top:39px; left:27px; right:27px; border:1px solid #000000; padding:2px; background:#ffffff; color:#000000; font-family:monospace; text-align:center;">You have completed<br>Level ${level}</div>
+            <div style="position:absolute; bottom:20px; left:0; right:0; text-align:center;"><button onclick="advanceLevel()">NEXT LEVEL</button></div>
         </div>
     `);
 }
@@ -466,15 +461,10 @@ function newGame() {
     if (!Module || dialogOpen) return;
     showOverlay(`
         <div class="screen" style="width:313px; height:141px; position:relative;">
-            <img src="data:image/bmp;base64,${ASSET_BASE64['newgame_base.bmp']}" style="position:absolute; top:0; left:0; width:313px; height:138px;">
+            <img src="${ASSET_BASE64['newgame_base.bmp']}" style="position:absolute; top:0; left:0; width:313px; height:138px;">
             <div style="position:absolute; top:8px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; text-shadow:1px 1px 2px #000000;">JezzBox</div>
-            <div style="position:absolute; top:48px; left:68px; right:68px; color:#000000; font-family:monospace; text-align:center;">
-                Do you want to start a new game?
-            </div>
-            <div style="position:absolute; bottom:14px; display:flex; justify-content:center; gap:20px;">
-                <button onclick="confirmNewGame()">Yes</button>
-                <button onclick="hideOverlay()">No</button>
-            </div>
+            <div style="position:absolute; top:48px; left:68px; right:68px; color:#000000; font-family:monospace; text-align:center;">Do you want to start a new game?</div>
+            <div style="position:absolute; bottom:14px; display:flex; justify-content:center; gap:20px;"><button onclick="confirmNewGame()">Yes</button><button onclick="hideOverlay()">No</button></div>
         </div>
     `);
 }
@@ -494,17 +484,13 @@ function togglePause() {
     if (!Module || dialogOpen) return;
     Module.togglePause();
     updateMenuCheckmarks();
-    if (Module.isPaused()) {
-        showPaused();
-    } else {
-        hideOverlay();
-    }
+    if (Module.isPaused()) { showPaused(); } else { hideOverlay(); }
 }
 
 function showPaused() {
     showOverlay(`
         <div class="screen" style="width:${kPauseWidth}px; height:${kPauseHeight}px; position:relative; text-align:center;">
-            <img src="data:image/bmp;base64,${ASSET_BASE64['paused_base.bmp']}" style="position:absolute; top:0; left:0; width:${kPauseWidth}px; height:${kPauseHeight}px;">
+            <img src="${ASSET_BASE64['paused_base.bmp']}" style="position:absolute; top:0; left:0; width:${kPauseWidth}px; height:${kPauseHeight}px;">
             <div style="position:absolute; top:8px; left:0; right:0; text-align:center; color:#000000; font-weight:bold;">Paused</div>
         </div>
     `);
@@ -517,43 +503,24 @@ function showHighScores() {
             <h2 style="color:#00ffff; margin:0 0 10px;">High Scores</h2>
             <div style="text-align:left; margin:0 auto; max-width:280px; font-family:monospace; color:#000000;">
                 <div style="margin-bottom:8px;"><b>All Time:</b></div>
-                <div id="highscores-all">Loading...</div>
+                <div id="highscores-all">(no scores saved)</div>
                 <div style="margin-top:8px;"><b>Today:</b></div>
-                <div id="highscores-today">Loading...</div>
+                <div id="highscores-today">(no scores saved)</div>
             </div>
-            <div style="margin-top:14px;">
-                <button onclick="hideOverlay()">OK</button>
-                <button onclick="clearHighScores()">Clear Scores</button>
-            </div>
+            <div style="margin-top:14px;"><button onclick="hideOverlay()">OK</button><button onclick="clearHighScores()">Clear Scores</button></div>
         </div>
     `);
-    // High scores are stored in the WASM module via file I/O which doesn't work in browser
-    document.getElementById('highscores-all').textContent = '(no scores saved)';
-    document.getElementById('highscores-today').textContent = '(no scores saved)';
 }
 
-function clearHighScores() {
-    hideOverlay();
-}
+function clearHighScores() { hideOverlay(); }
 
 function showAbout() {
     if (!Module || dialogOpen) return;
     showOverlay(`
         <div class="screen" style="width:282px; max-width:95vw; position:relative; text-align:center;">
             <h2 style="color:#00ffff; margin:0 0 10px;">About JezzBox</h2>
-            <div style="text-align:left; margin:0 auto; max-width:240px; font-family:monospace; color:#000000; line-height:1.6;">
-                Jezz Ball<br>
-                by Dima Pavlovsky<br>
-                Produced by Marjacq Micro Ltd.<br>
-                Copyright &copy; 1992 Microsoft Corp.<br>
-                <br>
-                Faithful web port of the original<br>
-                1992 Windows 3.1 JezzBall game engine<br>
-                compiled to WebAssembly.
-            </div>
-            <div style="margin-top:14px;">
-                <button onclick="hideOverlay()">OK</button>
-            </div>
+            <div style="text-align:left; margin:0 auto; max-width:240px; font-family:monospace; color:#000000; line-height:1.6;">Jezz Ball<br>by Dima Pavlovsky<br>Produced by Marjacq Micro Ltd.<br>Copyright &copy; 1992 Microsoft Corp.<br><br>Faithful web port of the original<br>1992 Windows 3.1 JezzBall game engine<br>compiled to WebAssembly.</div>
+            <div style="margin-top:14px;"><button onclick="hideOverlay()">OK</button></div>
         </div>
     `);
 }
@@ -570,40 +537,27 @@ function showHelp(topic) {
     showOverlay(`
         <div class="screen" style="width:260px; max-width:95vw; position:relative; text-align:center;">
             <h2 style="color:#00ffff; margin:0 0 10px;">${t.title}</h2>
-            <div style="text-align:left; margin:0 auto; max-width:220px; font-family:monospace; color:#000000; white-space:pre-line;">
-                ${t.body}
-            </div>
-            <div style="margin-top:14px;">
-                <button onclick="hideOverlay()">OK</button>
-            </div>
+            <div style="text-align:left; margin:0 auto; max-width:220px; font-family:monospace; color:#000000; white-space:pre-line;">${t.body}</div>
+            <div style="margin-top:14px;"><button onclick="hideOverlay()">OK</button></div>
         </div>
     `);
 }
 
 function exitGame() {
     if (!Module || dialogOpen) return;
-    if (confirm('Exit JezzBox?')) {
-        location.reload();
-    }
+    if (confirm('Exit JezzBox?')) { location.reload(); }
 }
 
 function updateMenuCheckmarks() {
     if (!Module) return;
     const slowItem = document.getElementById('menu-slow');
     const fastItem = document.getElementById('menu-fast');
-    const soundItem = document.getElementById('menu-sound');
     if (slowItem && fastItem) {
-        if (Module.isFast()) {
-            slowItem.textContent = 'Slow';
-            fastItem.textContent = 'Fast';
-        } else {
-            slowItem.textContent = 'Slow';
-            fastItem.textContent = 'Fast';
-        }
+        slowItem.textContent = Module.isFast() ? 'Slow' : 'Slow';
+        fastItem.textContent = Module.isFast() ? 'Fast' : 'Fast';
     }
 }
 
-// Make menu functions global for HTML onclick
 window.newGame = newGame;
 window.togglePause = togglePause;
 window.showHighScores = showHighScores;
@@ -647,24 +601,30 @@ function loop(now) {
 // ---------- Input ----------
 function boardCellFromEvent(ev) {
     const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((ev.clientX - rect.left) / kScreenTileW) + kVisibleMinX;
-    const y = kVisibleMaxY - Math.floor((ev.clientY - rect.top) / kScreenTileH);
+    // Account for board origin offset (board is centered in canvas)
+    const boardX = ev.clientX - rect.left - layout.originX;
+    const boardY = ev.clientY - rect.top - layout.originY;
+    const x = kVisibleMinX + Math.floor(boardX / kScreenTileW);
+    const y = kVisibleMaxY - Math.floor(boardY / kScreenTileH);
     return { x, y };
 }
 
 canvas.addEventListener('mousedown', (ev) => {
+    console.log('Canvas mousedown, button=', ev.button, 'Module=', !!Module, 'dialogOpen=', dialogOpen, 'started=', started);
     if (!Module || dialogOpen) return;
-    if (ev.button === 0) { // left click
+    if (ev.button === 0) {
         if (!started) {
             startGame();
             return;
         }
         if (Module.isGameOver() || Module.isLevelComplete()) return;
         const { x, y } = boardCellFromEvent(ev);
+        console.log('Click at board cell:', x, y);
         if (x >= 1 && x <= kBoardWidth && y >= 1 && y <= kBoardHeight) {
             Module.beginCut(x, y);
+            console.log('Cut started at', x, y);
         }
-    } else if (ev.button === 2) { // right click - toggle orientation
+    } else if (ev.button === 2) {
         ev.preventDefault();
         if (!started) return;
         if (Module.isGameOver() || Module.isLevelComplete()) return;
@@ -672,7 +632,6 @@ canvas.addEventListener('mousedown', (ev) => {
     }
 });
 
-// Prevent context menu on right click
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
 window.addEventListener('keydown', (ev) => {
@@ -682,18 +641,12 @@ window.addEventListener('keydown', (ev) => {
         if (!started) { startGame(); return; }
         if (Module.isGameOver()) { restartGame(); return; }
     }
-    if (key === 'enter' && Module.isLevelComplete()) {
-        advanceLevel();
-        return;
-    }
+    if (key === 'enter' && Module.isLevelComplete()) { advanceLevel(); return; }
     if (!started) return;
     if (key === ' ') { ev.preventDefault(); Module.togglePause(); }
     if (key === 'p') Module.togglePause();
     if (key === 'f') Module.setFast(!Module.isFast());
     if (key === 'v') Module.toggleOrientation();
-    if (key === 'f2') { /* New Game - handled by menu */ }
-    if (key === 'f3') { Module.togglePause(); }
-    if (key === 'f1') { /* Help - handled by menu */ }
 });
 
 // ---------- Bootstrap ----------
@@ -706,24 +659,27 @@ showOverlay(`
 
 (async () => {
     try {
+        console.log('Loading assets...');
         await loadAssets();
+        console.log('Loading WASM module...');
         Module = await JezzBoxModule({
             locateFile: (path) => path.endsWith('.wasm') ? 'jezzbox.wasm' : path
         });
+        console.log('WASM module loaded, calling reset()...');
         Module.reset();
+        console.log('Game reset, level=', Module.level(), 'balls=', Module.ballCount(), 'tickMs=', Module.tickMilliseconds());
         showOverlay(`
             <div class="screen">
                 <h1>JezzBox</h1>
                 <p>The original 1992 JezzBall engine, compiled to WebAssembly.</p>
-                <p>Click the board to start a cut.<br>
-                Right-click to toggle wall orientation.<br>
-                Press <b>V</b> toggle orientation &bull; <b>F</b> fast/slow &bull; <b>P</b> pause</p>
+                <p>Click the board to start a cut.<br>Right-click to toggle wall orientation.<br>Press <b>V</b> toggle orientation &bull; <b>F</b> fast/slow &bull; <b>P</b> pause</p>
                 <p>Click anywhere to begin</p>
             </div>
         `);
         last = performance.now();
         acc = 0;
         rafId = requestAnimationFrame(loop);
+        console.log('Loop started');
     } catch (err) {
         console.error('JezzBox load failed', err);
         showError(err && err.message ? err.message : String(err));
@@ -736,14 +692,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = menu.querySelector('.menu-title');
         const dropdown = menu.querySelector('.menu-dropdown');
         title.addEventListener('click', () => {
-            // Close all other dropdowns
             document.querySelectorAll('.menu-dropdown.shown').forEach(d => {
                 if (d !== dropdown) d.classList.remove('shown');
             });
             dropdown.classList.toggle('shown');
         });
     });
-    // Close dropdowns when clicking outside
     document.addEventListener('click', (ev) => {
         if (!ev.target.closest('.menu')) {
             document.querySelectorAll('.menu-dropdown.shown').forEach(d => d.classList.remove('shown'));
