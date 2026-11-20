@@ -89,7 +89,10 @@ async function loadAssets() {
     const names = Object.keys(bmpData);
     for (const name of names) {
         const buf = Uint8Array.from(atob(bmpData[name]), c => c.charCodeAt(0)).buffer;
-        assets[name] = bmpToCanvas(buf);
+        const canvas = bmpToCanvas(buf);
+        assets[name] = canvas;
+        // Convert to PNG data URL for use in HTML dialogs (BMP not widely supported in <img>)
+        ASSET_BASE64[name] = canvas.toDataURL('image/png');
     }
 }
 
