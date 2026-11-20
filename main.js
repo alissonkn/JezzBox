@@ -17,6 +17,45 @@ window.addEventListener('unhandledrejection', (ev) => {
     if (d) d.textContent += '\nREJECTION: ' + (ev.reason ? ev.reason : ev);
 });
 
+// ---------- Sound (Web Audio API, generated without external files) ----------
+let audioCtx = null;
+
+function ensureAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+}
+
+function playTone(freq, duration, type = 'sine', volume = 0.1) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+}
+
+function playBounce() {
+    playTone(800, 0.05, 'square', 0.05);
+}
+
+function playDead() {
+    playTone(200, 0.3, 'sawtooth', 0.1);
+    playTone(150, 0.3, 'sawtooth', 0.1);
+}
+
+function playStart() {
+    playTone(400, 0.1, 'square', 0.1);
+    setTimeout(() => playTone(600, 0.1, 'square', 0.1), 100);
+    setTimeout(() => playTone(800, 0.2, 'square', 0.1), 200);
+}
+
 // ---------- BMP Parser ----------
 function parseBMP(arrayBuffer) {
     const data = new Uint8Array(arrayBuffer);
@@ -164,6 +203,9 @@ let rafId = null;
 let last = performance.now();
 let acc = 0;
 let dialogOpen = null;
+
+// Sound: track previous ball velocities for bounce detection
+let prevBallVelocities = null;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -427,6 +469,7 @@ function startGame() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(loop);
     updateCursor();
+    playStart();
     console.log('Game started, loop running');
 }
 
@@ -594,7 +637,28 @@ function loop(now) {
         const tickMs = Module.tickMilliseconds();
         while (acc >= tickMs) {
             acc -= tickMs;
+
+            // Capture ball velocities before tick for bounce detection
+            const ballsBefore = Module.balls();
+            const prevVel = [];
+            for (let i = 0; i < Module.ballCount(); i++) {
+                const b = ballsBefore[i];
+                prevVel.push({ dx: b.dx, dy: b.dy, active: b.active });
+            }
+
             Module.tick();
+
+            // Detect bounces: balls whose velocity direction changed
+            const ballsAfter = Module.balls();
+            for (let i = 0; i < Module.ballCount(); i++) {
+                const b = ballsAfter[i];
+                const pv = prevVel[i];
+                if (pv.active && b.active) {
+                    if ((b.dx !== pv.dx || b.dy !== pv.dy) && (b.dx !== 0 || b.dy !== 0)) {
+                        playBounce();
+                    }
+                }
+            }
         }
     }
 
@@ -602,6 +666,7 @@ function loop(now) {
     updateCursor();
 
     if (Module.isGameOver() && started) {
+        playDead();
         cancelAnimationFrame(rafId);
         showGameOver();
         return;
