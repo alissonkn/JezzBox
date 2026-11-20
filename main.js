@@ -520,33 +520,9 @@ function advanceLevel() {
     startGame();
 }
 
-function newGame() {
-    if (!Module || dialogOpen) return;
-    showOverlay(`
-        <div class="screen" style="width:313px; height:141px; position:relative;">
-            <div style="position:absolute; top:0; left:0; width:313px; height:138px; background:#000000; border:2px solid #c0c0c0;"></div>
-            <div style="position:absolute; top:8px; left:28px; right:28px; text-align:center; color:#ffffff; font-weight:bold; text-shadow:1px 1px 2px #000000;">JezzBox</div>
-            <div style="position:absolute; top:48px; left:68px; right:68px; color:#000000; font-family:monospace; text-align:center;">Do you want to start a new game?</div>
-            <div style="position:absolute; bottom:14px; display:flex; justify-content:center; gap:20px;"><button onclick="confirmNewGame()">Yes</button><button onclick="hideOverlay()">No</button></div>
-        </div>
-    `);
-}
-
-function confirmNewGame() {
-    Module.reset();
-    started = true;
-    hideOverlay();
-    last = performance.now();
-    acc = 0;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(loop);
-    updateMenuCheckmarks();
-}
-
 function togglePause() {
     if (!Module || dialogOpen) return;
     Module.togglePause();
-    updateMenuCheckmarks();
     if (Module.isPaused()) { showPaused(); } else { hideOverlay(); }
 }
 
@@ -559,136 +535,8 @@ function showPaused() {
     `);
 }
 
-function showHighScores() {
-    if (!Module || dialogOpen) return;
-    showOverlay(`
-        <div class="screen" style="width:344px; max-width:95vw; position:relative; text-align:center;">
-            <h2 style="color:#00ffff; margin:0 0 10px;">High Scores</h2>
-            <div style="text-align:left; margin:0 auto; max-width:280px; font-family:monospace; color:#000000;">
-                <div style="margin-bottom:8px;"><b>All Time:</b></div>
-                <div id="highscores-all">(no scores saved)</div>
-                <div style="margin-top:8px;"><b>Today:</b></div>
-                <div id="highscores-today">(no scores saved)</div>
-            </div>
-            <div style="margin-top:14px;"><button onclick="hideOverlay()">OK</button><button onclick="clearHighScores()">Clear Scores</button></div>
-        </div>
-    `);
-}
 
-function clearHighScores() { hideOverlay(); }
-
-function showAbout() {
-    if (!Module || dialogOpen) return;
-    showOverlay(`
-        <div class="screen" style="width:282px; max-width:95vw; position:relative; text-align:center;">
-            <h2 style="color:#00ffff; margin:0 0 10px;">About JezzBox</h2>
-            <div style="text-align:left; margin:0 auto; max-width:240px; font-family:monospace; color:#000000; line-height:1.6;">Jezz Ball<br>by Dima Pavlovsky<br>Produced by Marjacq Micro Ltd.<br>Copyright &copy; 1992 Microsoft Corp.<br><br>Faithful web port of the original<br>1992 Windows 3.1 JezzBall game engine<br>compiled to WebAssembly.</div>
-            <div style="margin-top:14px;"><button onclick="hideOverlay()">OK</button></div>
-        </div>
-    `);
-}
-
-function showHelp(topic) {
-    if (!Module || dialogOpen) return;
-    const topics = {
-        contents: { title: 'Help Contents', body: 'How To Play\r\nCommands\r\nHow To Use Help' },
-        howtoplay: { title: 'How To Play', body: 'Point inside the chamber and click to build a wall.\r\nRight-click alternates horizontal and vertical walls.\r\nA wall grows until it reaches an edge or a ball.' },
-        commands: { title: 'Commands', body: 'F1  Help\r\nF2  New Game\r\nF3  Pause\r\nRight mouse button  Change wall direction' },
-        usehelp: { title: 'How To Use Help', body: 'Choose a topic from Help Contents.\r\nUse the scroll bar or links in a Help viewer.' }
-    };
-    const t = topics[topic] || topics.contents;
-    showOverlay(`
-        <div class="screen" style="width:260px; max-width:95vw; position:relative; text-align:center;">
-            <h2 style="color:#00ffff; margin:0 0 10px;">${t.title}</h2>
-            <div style="text-align:left; margin:0 auto; max-width:220px; font-family:monospace; color:#000000; white-space:pre-line;">${t.body}</div>
-            <div style="margin-top:14px;"><button onclick="hideOverlay()">OK</button></div>
-        </div>
-    `);
-}
-
-function exitGame() {
-    if (!Module || dialogOpen) return;
-    if (confirm('Exit JezzBox?')) { location.reload(); }
-}
-
-function updateMenuCheckmarks() {
-    if (!Module) return;
-    const slowItem = document.getElementById('menu-slow');
-    const fastItem = document.getElementById('menu-fast');
-    if (slowItem && fastItem) {
-        slowItem.textContent = Module.isFast() ? 'Slow' : 'Slow';
-        fastItem.textContent = Module.isFast() ? 'Fast' : 'Fast';
-    }
-}
-
-window.newGame = newGame;
-window.togglePause = togglePause;
-window.showHighScores = showHighScores;
-window.exitGame = exitGame;
-window.showAbout = showAbout;
-window.showHelp = showHelp;
-window.restartGame = restartGame;
-
-function loop(now) {
-    if (dialogOpen) {
-        rafId = requestAnimationFrame(loop);
-        return;
-    }
-    const dt = now - last;
-    last = now;
-    acc += dt;
-
-    if (!Module.isPaused() && !Module.isGameOver() && !Module.isLevelComplete() && started) {
-        const tickMs = Module.tickMilliseconds();
-        while (acc >= tickMs) {
-            acc -= tickMs;
-
-            // Capture ball velocities before tick for bounce detection
-            const ballsBefore = Module.balls();
-            const prevVel = [];
-            for (let i = 0; i < Module.ballCount(); i++) {
-                const b = ballsBefore[i];
-                prevVel.push({ dx: b.dx, dy: b.dy, active: b.active });
-            }
-
-            Module.tick();
-
-            // Detect bounces: balls whose velocity direction changed
-            const ballsAfter = Module.balls();
-            for (let i = 0; i < Module.ballCount(); i++) {
-                const b = ballsAfter[i];
-                const pv = prevVel[i];
-                if (pv.active && b.active) {
-                    if ((b.dx !== pv.dx || b.dy !== pv.dy) && (b.dx !== 0 || b.dy !== 0)) {
-                        playBounce();
-                    }
-                }
-            }
-        }
-    }
-
-    draw();
-    updateCursor();
-
-    if (Module.isGameOver() && started) {
-        playDead();
-        cancelAnimationFrame(rafId);
-        showGameOver();
-        return;
-    }
-    if (Module.isLevelComplete() && started) {
-        cancelAnimationFrame(rafId);
-        showLevelComplete();
-        return;
-    }
-    rafId = requestAnimationFrame(loop);
-}
-
-// ---------- Input ----------
 function boardCellFromEvent(ev) {
-    const rect = canvas.getBoundingClientRect();
-    // Account for CSS scaling: rect is in CSS pixels, board coords are internal pixels
-    const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const boardX = (ev.clientX - rect.left) * scaleX - layout.originX;
     const boardY = (ev.clientY - rect.top) * scaleY - layout.originY;
@@ -784,22 +632,3 @@ showOverlay(`
         showError(err && err.message ? err.message : String(err));
     }
 })();
-
-// ---------- Menu dropdowns ----------
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.menu').forEach(menu => {
-        const title = menu.querySelector('.menu-title');
-        const dropdown = menu.querySelector('.menu-dropdown');
-        title.addEventListener('click', () => {
-            document.querySelectorAll('.menu-dropdown.shown').forEach(d => {
-                if (d !== dropdown) d.classList.remove('shown');
-            });
-            dropdown.classList.toggle('shown');
-        });
-    });
-    document.addEventListener('click', (ev) => {
-        if (!ev.target.closest('.menu')) {
-            document.querySelectorAll('.menu-dropdown.shown').forEach(d => d.classList.remove('shown'));
-        }
-    });
-});
