@@ -7,15 +7,16 @@
 // ---------- BMP Parser ----------
 function parseBMP(arrayBuffer) {
     const data = new Uint8Array(arrayBuffer);
+    const dv = new DataView(arrayBuffer);
     if (data[0] !== 0x42 || data[1] !== 0x4D) throw new Error('Not a BMP file');
 
-    const pixelOffset = data.readUInt32LE(10);
-    const headerSize = data.readUInt32LE(14);
-    const width = data.readInt32LE(18);
-    const height = data.readInt32LE(22);
-    const planes = data.readUInt16LE(26);
-    const bitCount = data.readUInt16LE(28);
-    const compression = data.readUInt32LE(30);
+    const pixelOffset = dv.getUint32(10, true);
+    const headerSize = dv.getUint32(14, true);
+    const width = dv.getInt32(18, true);
+    const height = dv.getInt32(22, true);
+    const planes = dv.getUint16(26, true);
+    const bitCount = dv.getUint16(28, true);
+    const compression = dv.getUint32(30, true);
 
     if (planes !== 1) throw new Error('Unexpected BMP planes');
     if (compression !== 0) throw new Error('Compressed BMP not supported');
