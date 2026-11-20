@@ -535,6 +535,61 @@ function showPaused() {
     `);
 }
 
+function loop(now) {
+    if (showStartScreen || showGameOverScreen || showLevelCompleteScreen || showPaused) {
+        rafId = requestAnimationFrame(loop);
+        return;
+    }
+    const dt = now - last;
+    last = now;
+    acc += dt;
+
+    if (!Module.isPaused() && !Module.isGameOver() && !Module.isLevelComplete() && started) {
+        const tickMs = Module.tickMilliseconds();
+        while (acc >= tickMs) {
+            acc -= tickMs;
+
+            // Capture ball velocities before tick for bounce detection
+            const ballsBefore = Module.balls();
+            const prevVel = [];
+            for (let i = 0; i < Module.ballCount(); i++) {
+                const b = ballsBefore[i];
+                prevVel.push({ dx: b.dx, dy: b.dy, active: b.active });
+            }
+
+            Module.tick();
+
+            // Detect bounces: balls whose velocity direction changed
+            const ballsAfter = Module.balls();
+            for (let i = 0; i < Module.ballCount(); i++) {
+                const b = ballsAfter[i];
+                const pv = prevVel[i];
+                if (pv.active && b.active) {
+                    if ((b.dx !== pv.dx || b.dy !== pv.dy) && (b.dx !== 0 || b.dy !== 0)) {
+                        playBounce();
+                    }
+                }
+            }
+        }
+    }
+
+    draw();
+    updateCursor();
+
+    if (Module.isGameOver() && started) {
+        playDead();
+        cancelAnimationFrame(rafId);
+        showGameOver();
+        return;
+    }
+    if (Module.isLevelComplete() && started) {
+        cancelAnimationFrame(rafId);
+        showLevelComplete();
+        return;
+    }
+    rafId = requestAnimationFrame(loop);
+}
+
 
 function boardCellFromEvent(ev) {
     const scaleY = canvas.height / rect.height;
