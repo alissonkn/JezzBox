@@ -404,7 +404,7 @@ function showError(msg) {
 
 function startGame() {
     console.log('startGame called, Module=', !!Module, 'dialogOpen=', dialogOpen, 'started=', started);
-    if (!Module || dialogOpen) return;
+    if (!Module) return;
     started = true;
     hideOverlay();
     last = performance.now();
@@ -632,6 +632,16 @@ canvas.addEventListener('mousedown', (ev) => {
 });
 
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+// Overlay click also starts the game (covers canvas before play begins)
+overlay.addEventListener('click', (ev) => {
+    console.log('Overlay click, started=', started, 'Module=', !!Module);
+    if (!Module) return;
+    if (!started) {
+        startGame();
+        return;
+    }
+});
 
 window.addEventListener('keydown', (ev) => {
     if (!Module) return;
